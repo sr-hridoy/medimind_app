@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
 import 'patient_dashboard.dart';
-import '../theme.dart';
+import 'admin_page.dart';
 
 class MonitorDashboard extends StatefulWidget {
   const MonitorDashboard({super.key});
@@ -26,19 +26,32 @@ class _MonitorDashboardState extends State<MonitorDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    const Color mintBackground = Color(0xFFE0F7FA);
+    const Color tealPrimary = Color(0xFF26A69A);
     final pages = [patientListTab(), settingsTab()];
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Monitor Dashboard")),
+      backgroundColor: mintBackground,
+      appBar: AppBar(
+        title: const Text("Monitor Dashboard"),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: pages[currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: currentIndex,
-        selectedItemColor: mint,
+        selectedItemColor: tealPrimary,
+        backgroundColor: Colors.white,
         onTap: (index) => setState(() => currentIndex = index),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: "Patients"),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
+            icon: Icon(Icons.people_outline),
+            activeIcon: Icon(Icons.people),
+            label: "Patients",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings),
             label: "Settings",
           ),
         ],
@@ -48,22 +61,47 @@ class _MonitorDashboardState extends State<MonitorDashboard> {
 
   Widget patientListTab() {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       children: [
         const Text(
           "Linked Patients",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF37474F),
+          ),
         ),
-        const SizedBox(height: 15),
+        const SizedBox(height: 16),
 
         ...patients.map((patient) {
           return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: ExpansionTile(
-              title: Text(patient["name"]),
+              tilePadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 4,
+              ),
+              leading: const Icon(
+                Icons.person_outline,
+                color: Color(0xFF26A69A),
+              ),
+              title: Text(
+                patient["name"],
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              shape: const RoundedRectangleBorder(side: BorderSide.none),
               children: (patient["medicines"] as List).map((med) {
                 return ListTile(
-                  leading: const Icon(Icons.medication, color: mint),
-                  title: Text(med),
+                  leading: const Icon(
+                    Icons.medication_outlined,
+                    color: Color(0xFF26A69A),
+                    size: 20,
+                  ),
+                  title: Text(med, style: const TextStyle(fontSize: 14)),
                 );
               }).toList(),
             ),
@@ -75,34 +113,65 @@ class _MonitorDashboardState extends State<MonitorDashboard> {
 
   Widget settingsTab() {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       children: [
         const Text(
-          "General",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          "Settings",
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF37474F),
+          ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 16),
 
-        ListTile(
-          leading: const Icon(Icons.swap_horiz),
-          title: const Text("Switch Dashboard"),
-          onTap: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const PatientDashboard()),
-            );
-          },
-        ),
-
-        ListTile(
-          leading: const Icon(Icons.logout),
-          title: const Text("Logout"),
-          onTap: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const LoginPage()),
-            );
-          },
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.swap_horiz, color: Color(0xFF26A69A)),
+                title: const Text("Switch to Patient Dashboard"),
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PatientDashboard()),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.admin_panel_settings_outlined,
+                  color: Color(0xFF26A69A),
+                ),
+                title: const Text("Admin Panel"),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminPage()),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.redAccent),
+                title: const Text(
+                  "Logout",
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginPage()),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ],
     );
