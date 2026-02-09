@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'patient_dashboard.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 import 'auth_logo.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -18,6 +19,85 @@ class _RegisterPageState extends State<RegisterPage> {
 
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+  bool _isLoading = false;
+  final AuthService _authService = AuthService();
+
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _authService.signUp(
+        email: emailController.text.trim(),
+        password: passController.text,
+        name: nameController.text.trim(),
+      );
+
+      // Sign out so user has to verify email first
+      await _authService.signOut();
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      // Show success dialog
+      _showSuccessDialog();
+    } on FirebaseAuthException catch (e) {
+      setState(() => _isLoading = false);
+      String message = 'Registration failed. Please try again.';
+      if (e.code == 'email-already-in-use') {
+        message = 'An account already exists with this email.';
+      } else if (e.code == 'weak-password') {
+        message = 'Password is too weak. Please use a stronger password.';
+      } else if (e.code == 'invalid-email') {
+        message = 'Invalid email address.';
+      }
+      _showSnackBar(message);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar('An error occurred. Please try again.');
+    }
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Color(0xFF26A69A)),
+            SizedBox(width: 8),
+            Text('Registration Successful!'),
+          ],
+        ),
+        content: const Text(
+          'A verification email has been sent to your email address.\n\n'
+          '📧 Please check your inbox and spam folder for the verification link.\n\n'
+          'You must verify your email before you can log in.',
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Go back to login
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF26A69A),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Go to Login'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +166,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 // Email Field
                 TextFormField(
                   controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     labelText: "Email",
                     prefixIcon: const Icon(
@@ -120,7 +201,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   controller: passController,
                   obscureText: !_isPasswordVisible,
                   decoration: InputDecoration(
-                    labelText: "Password",
+                    labelText: "Password (8-12 characters)",
                     prefixIcon: const Icon(
                       Icons.lock_outline,
                       color: tealPrimary,
@@ -149,18 +230,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
-                    }
-                    if (value.length < 8) {
-                      return 'Password must be at least 8 characters';
-                    }
-                    if (!value.contains(RegExp(r'[0-9]'))) {
-                      return 'Password must contain at least one number';
-                    }
-                    return null;
-                  },
+                  validator: AuthService.validatePassword,
                 ),
                 const SizedBox(height: 20),
 
@@ -216,16 +286,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   width: double.infinity,
                   height: 55,
                   child: ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const PatientDashboard(),
-                          ),
-                        );
-                      }
-                    },
+                    onPressed: _isLoading ? null : _register,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: tealPrimary,
                       foregroundColor: Colors.white,
@@ -234,13 +295,22 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       elevation: 2,
                     ),
-                    child: const Text(
-                      "Register",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            "Register",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 24),

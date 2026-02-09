@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "59570685471",
+    "project_id": "medimind-app-hridoy",
+    "storage_bucket": "medimind-app-hridoy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:59570685471:android:b154a39588bde6a563b72a",
+        "android_client_info": {
+          "package_name": "com.example.medicine_reminder_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHHGOAir4EBV3sX_vRzhjO_Jup1oXs_ZE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

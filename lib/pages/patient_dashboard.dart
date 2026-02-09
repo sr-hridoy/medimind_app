@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/auth_service.dart';
+import '../services/database_service.dart';
 import 'add_medicine_page.dart';
 import 'login_page.dart';
 import 'monitor_dashboard.dart';
+import '../widgets/dose_list_view.dart';
 
 class PatientDashboard extends StatefulWidget {
   const PatientDashboard({super.key});
@@ -12,36 +16,18 @@ class PatientDashboard extends StatefulWidget {
 
 class _PatientDashboardState extends State<PatientDashboard> {
   int currentIndex = 0;
-  bool notificationsOn = true;
-
-  List<Map<String, dynamic>> medicines = [
-    {
-      "name": "Napa",
-      "dose": "500mg",
-      "time": "08:00 AM",
-      "type": "tablet",
-      "frequency": "Thrice Daily",
-      "isTaken": false,
-    },
-    {
-      "name": "Syrup X",
-      "dose": "10ml",
-      "time": "02:00 PM",
-      "type": "syrup",
-      "frequency": "Once Daily",
-      "isTaken": false,
-    },
-    {
-      "name": "Insulin",
-      "dose": "5 units",
-      "time": "09:00 PM",
-      "type": "injection",
-      "frequency": "Daily",
-      "isTaken": true,
-    },
-  ];
-
   String filter = "All";
+
+  final AuthService _authService = AuthService();
+  late DatabaseService _dbService;
+
+  // Track taken/missed medicines persistence handled by DatabaseService
+
+  @override
+  void initState() {
+    super.initState();
+    _dbService = DatabaseService(userId: _authService.currentUser?.uid);
+  }
 
   IconData getMedicineIcon(String type) {
     if (type == "tablet") return Icons.medication;
@@ -49,7 +35,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
     return Icons.vaccines;
   }
 
-  void _showMedDetail(Map<String, dynamic> med, {String mode = "none"}) {
+  void _showMedManageDetail(Map<String, dynamic> med, String docId) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -61,83 +47,55 @@ class _PatientDashboardState extends State<PatientDashboard> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              getMedicineIcon(med["type"]),
+              getMedicineIcon(med["type"] ?? 'tablet'),
               size: 48,
               color: const Color(0xFF26A69A),
             ),
             const SizedBox(height: 16),
             Text(
-              med["name"],
+              med["name"] ?? 'Unknown',
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             Text(
-              "${med["dose"]} • ${med["type"]}",
+              "${med["dose"] ?? ''} • ${med["type"] ?? 'tablet'}",
               style: const TextStyle(
                 color: Colors.grey,
                 fontWeight: FontWeight.w500,
               ),
             ),
             Text(
-              "${med["time"]} • ${med["frequency"] ?? 'Daily'}",
+              "${(med["times"] as List<dynamic>?)?.join(', ') ?? ''} • ${med["frequency"] ?? 'Daily'}",
               style: const TextStyle(color: Colors.grey),
             ),
-            if (mode == "tracking") ...[
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text("Missed"),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      await _dbService.deleteMedicine(docId);
+                      if (!mounted) return;
+                      Navigator.pop(context);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
                     ),
+                    child: const Text("Delete"),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() => med["isTaken"] = true);
-                        Navigator.pop(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF26A69A),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text("Taken"),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF26A69A),
+                      foregroundColor: Colors.white,
                     ),
+                    child: const Text("OK"),
                   ),
-                ],
-              ),
-            ] else if (mode == "manage") ...[
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        setState(() => medicines.remove(med));
-                        Navigator.pop(context);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                      ),
-                      child: const Text("Delete"),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF26A69A),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text("OK"),
-                    ),
-                  ),
-                ],
-              ),
-            ] else
-              const SizedBox(height: 16),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -198,64 +156,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
 
   // ---------------- HOME TAB ----------------
   Widget homeTab() {
-    final untracked = medicines.where((m) => !m["isTaken"]).toList();
-    final tracked = medicines.where((m) => m["isTaken"]).toList();
-
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _sectionHeader("Untracked Doses"),
-        if (untracked.isEmpty)
-          const Text(
-            "All doses tracked! 🎉",
-            style: TextStyle(color: Colors.grey),
-          ),
-        ...untracked.map((med) => _medCard(med, mode: "tracking")),
-        const SizedBox(height: 24),
-        _sectionHeader("Tracked Doses"),
-        if (tracked.isEmpty)
-          const Text(
-            "No tracked doses yet.",
-            style: TextStyle(color: Colors.grey),
-          ),
-        ...tracked.map((med) => _medCard(med, mode: "none")),
-      ],
-    );
-  }
-
-  Widget _sectionHeader(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Text(
-      text,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Color(0xFF37474F),
-      ),
-    ),
-  );
-
-  Widget _medCard(Map<String, dynamic> med, {required String mode}) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ListTile(
-        leading: Icon(
-          getMedicineIcon(med["type"]),
-          color: const Color(0xFF26A69A),
-        ),
-        title: Text(
-          med["name"],
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text("${med["dose"]} • ${med["time"]}"),
-        trailing: med["isTaken"]
-            ? const Icon(Icons.check_circle, color: Color(0xFF26A69A))
-            : const Icon(Icons.chevron_right),
-        onTap: () => _showMedDetail(med, mode: mode),
-      ),
-    );
+    return DoseListView(userId: _authService.currentUser?.uid ?? '');
   }
 
   // ---------------- MEDICINES TAB ----------------
@@ -283,10 +184,65 @@ class _PatientDashboardState extends State<PatientDashboard> {
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: ListView(
-              children: medicines
-                  .map((med) => _medCard(med, mode: "manage"))
-                  .toList(),
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _dbService.getMedicines(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      "No medicines added yet",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  );
+                }
+
+                var meds = snapshot.data!.docs;
+
+                // Apply filter
+                if (filter == "Daily") {
+                  meds = meds.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return data['schedule'] == 'Daily';
+                  }).toList();
+                } else if (filter == "Weekly") {
+                  meds = meds.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return data['schedule'] == 'Specific Days';
+                  }).toList();
+                }
+
+                return ListView(
+                  children: meds.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: ListTile(
+                        leading: Icon(
+                          getMedicineIcon(data["type"] ?? 'tablet'),
+                          color: const Color(0xFF26A69A),
+                        ),
+                        title: Text(
+                          data["name"] ?? 'Unknown',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          "${data["dose"] ?? ''} • ${(data["times"] as List<dynamic>?)?.join(', ') ?? ''}",
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => _showMedManageDetail(data, doc.id),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
             ),
           ),
         ],
@@ -357,68 +313,85 @@ class _PatientDashboardState extends State<PatientDashboard> {
                   );
                 },
               ),
-              const Divider(height: 1),
-              SwitchListTile(
-                value: notificationsOn,
-                activeColor: const Color(0xFF26A69A),
-                title: const Text("Enable Notifications"),
-                secondary: const Icon(
-                  Icons.notifications_outlined,
-                  color: Color(0xFF26A69A),
-                ),
-                onChanged: (value) => setState(() => notificationsOn = value),
-              ),
-              const Divider(height: 1),
-              const ListTile(
-                leading: Icon(
+              ListTile(
+                leading: const Icon(
                   Icons.supervised_user_circle_outlined,
                   color: Color(0xFF26A69A),
                 ),
-                title: Text("My Caregivers"),
-                trailing: Icon(
+                title: const Text("My Caregivers"),
+                trailing: const Icon(
                   Icons.chevron_right,
                   size: 20,
                   color: Colors.grey,
                 ),
+                onTap: _showCaregiversDialog,
               ),
               const Divider(height: 1),
-              const ListTile(
-                leading: Icon(
+              ListTile(
+                leading: const Icon(
                   Icons.notification_add_outlined,
                   color: Color(0xFF26A69A),
                 ),
-                title: Text("Monitor Request"),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  size: 20,
-                  color: Colors.grey,
+                title: const Text("Monitor Request"),
+                trailing: StreamBuilder<QuerySnapshot>(
+                  stream: _dbService.getPendingRequests(),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data?.docs.length ?? 0;
+                    if (count == 0) {
+                      return const Icon(
+                        Icons.chevron_right,
+                        size: 20,
+                        color: Colors.grey,
+                      );
+                    }
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        count.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    );
+                  },
                 ),
+                onTap: _showMonitorRequestsDialog,
               ),
               const Divider(height: 1),
-              const ListTile(
-                leading: Icon(
+              ListTile(
+                leading: const Icon(
                   Icons.help_outline_rounded,
                   color: Color(0xFF26A69A),
                 ),
-                title: Text("Help and FAQ"),
-                trailing: Icon(
+                title: const Text("Help and FAQ"),
+                trailing: const Icon(
                   Icons.chevron_right,
                   size: 20,
                   color: Colors.grey,
                 ),
+                onTap: () => _showContentDialog("Help & FAQ", "help_faq"),
               ),
               const Divider(height: 1),
-              const ListTile(
-                leading: Icon(
+              ListTile(
+                leading: const Icon(
                   Icons.info_outline_rounded,
                   color: Color(0xFF26A69A),
                 ),
-                title: Text("About Us"),
-                trailing: Icon(
+                title: const Text("About Us"),
+                trailing: const Icon(
                   Icons.chevron_right,
                   size: 20,
                   color: Colors.grey,
                 ),
+                onTap: () => _showContentDialog("About Us", "about_us"),
               ),
               const Divider(height: 1),
               ListTile(
@@ -427,7 +400,9 @@ class _PatientDashboardState extends State<PatientDashboard> {
                   "Logout",
                   style: TextStyle(color: Colors.redAccent),
                 ),
-                onTap: () {
+                onTap: () async {
+                  await _authService.signOut();
+                  if (!mounted) return;
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -438,6 +413,135 @@ class _PatientDashboardState extends State<PatientDashboard> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showCaregiversDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("My Caregivers"),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _dbService.getMyCaregivers(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox(
+                  height: 100,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Text("No caregivers linked yet.");
+              }
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: snapshot.data!.docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return ListTile(
+                    leading: const Icon(Icons.person, color: Color(0xFF26A69A)),
+                    title: Text(data['monitorName'] ?? 'Unknown'),
+                    subtitle: Text(data['monitorEmail'] ?? ''),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMonitorRequestsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Monitor Requests"),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _dbService.getPendingRequests(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox(
+                  height: 100,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Text("No pending requests.");
+              }
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: snapshot.data!.docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return Card(
+                    child: ListTile(
+                      title: Text(data['monitorName'] ?? 'Unknown'),
+                      subtitle: Text(data['monitorEmail'] ?? ''),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.red),
+                            onPressed: () async {
+                              await _dbService.rejectLinkRequest(doc.id);
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.check, color: Colors.green),
+                            onPressed: () async {
+                              await _dbService.acceptLinkRequest(doc.id);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showContentDialog(String title, String key) async {
+    final content = await _dbService.getAppContent(key);
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(
+          child: Text(content.isNotEmpty ? content : "Content not available."),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close"),
+          ),
+        ],
+      ),
     );
   }
 }

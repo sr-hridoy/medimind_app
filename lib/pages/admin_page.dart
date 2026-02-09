@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import '../services/database_service.dart';
 import 'login_page.dart';
 
 class AdminPage extends StatefulWidget {
@@ -9,14 +11,84 @@ class AdminPage extends StatefulWidget {
 }
 
 class _AdminPageState extends State<AdminPage> {
-  final _aboutController = TextEditingController(
-    text:
-        "MediMind is a smart medicine reminder app designed to help patients manage their medication schedules effectively.",
-  );
-  final _faqController = TextEditingController(
-    text:
-        "How to add medicine? Go to the dashboard and click the '+' button. Follow the prompts to set your schedule.",
-  );
+  final AuthService _authService = AuthService();
+  late DatabaseService _dbService;
+
+  final _aboutController = TextEditingController();
+  final _faqController = TextEditingController();
+
+  int _totalUsers = 0;
+  int _totalAdmins = 0;
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _dbService = DatabaseService(userId: _authService.currentUser?.uid);
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      final users = await _dbService.getTotalUsersCount();
+      final admins = await _dbService.getTotalAdminsCount();
+      final aboutContent = await _dbService.getAppContent('about_us');
+      final faqContent = await _dbService.getAppContent('help_faq');
+
+      if (mounted) {
+        setState(() {
+          _totalUsers = users;
+          _totalAdmins = admins;
+          _aboutController.text = aboutContent.isNotEmpty
+              ? aboutContent
+              : "MediMind is a smart medicine reminder app designed to help patients manage their medication schedules effectively.";
+          _faqController.text = faqContent.isNotEmpty
+              ? faqContent
+              : "How to add medicine? Go to the dashboard and click the '+' button. Follow the prompts to set your schedule.";
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showSnackBar('Failed to load data. Please try again.');
+      }
+    }
+  }
+
+  Future<void> _saveContent() async {
+    setState(() => _isSaving = true);
+    try {
+      await _dbService.saveAppContent('about_us', _aboutController.text);
+      await _dbService.saveAppContent('help_faq', _faqController.text);
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _showSnackBar('Content updated successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _showSnackBar('Failed to save content. Please try again.');
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    await _authService.signOut();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+    );
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,87 +102,96 @@ class _AdminPageState extends State<AdminPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: const Color(0xFF37474F),
+        automaticallyImplyLeading: false,
         actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.redAccent),
-            onPressed: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const LoginPage()),
-            ),
+            onPressed: _logout,
           ),
           const SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const Text(
-            "System Overview",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF37474F),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildSmallStatCard(
-                  "Admins",
-                  "3",
-                  Icons.admin_panel_settings,
-                  tealPrimary,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                const Text(
+                  "System Overview",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF37474F),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildSmallStatCard(
-                  "Users",
-                  "120",
-                  Icons.people,
-                  tealPrimary,
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSmallStatCard(
+                        "Admins",
+                        _totalAdmins.toString(),
+                        Icons.admin_panel_settings,
+                        tealPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildSmallStatCard(
+                        "Users",
+                        _totalUsers.toString(),
+                        Icons.people,
+                        tealPrimary,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
-          const Text(
-            "Manage Content",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF37474F),
+                const SizedBox(height: 32),
+                const Text(
+                  "Manage Content",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF37474F),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildEditCard("About Us", _aboutController),
+                const SizedBox(height: 12),
+                _buildEditCard("Help & FAQ", _faqController),
+                const SizedBox(height: 32),
+                ElevatedButton(
+                  onPressed: _isSaving ? null : _saveContent,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: tealPrimary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    elevation: 4,
+                    shadowColor: tealPrimary.withValues(alpha: 0.4),
+                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          "Save Changes",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          _buildEditCard("About Us", _aboutController),
-          const SizedBox(height: 12),
-          _buildEditCard("Help & FAQ", _faqController),
-          const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Content updated successfully!")),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: tealPrimary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              elevation: 4,
-              shadowColor: tealPrimary.withOpacity(0.4),
-            ),
-            child: const Text(
-              "Save Changes",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

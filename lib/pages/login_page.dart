@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 import 'register_page.dart';
 import 'patient_dashboard.dart';
+import 'admin_page.dart';
 import 'auth_logo.dart';
 
 class LoginPage extends StatefulWidget {
@@ -15,6 +18,151 @@ class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
+  final AuthService _authService = AuthService();
+
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _authService.signIn(
+        email: emailController.text.trim(),
+        password: passController.text,
+      );
+
+      // Reload user to get latest verification status
+      await _authService.reloadUser();
+
+      // Check if email is verified
+      if (!_authService.isEmailVerified()) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        _showVerificationDialog();
+        return;
+      }
+
+      if (!mounted) return;
+
+      // Check if user is admin
+      final email = emailController.text.trim();
+      if (_authService.isAdmin(email)) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminPage()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const PatientDashboard()),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() => _isLoading = false);
+      String message = 'Login failed. Please try again.';
+      if (e.code == 'user-not-found') {
+        message = 'No user found with this email.';
+      } else if (e.code == 'wrong-password') {
+        message = 'Wrong password. Please try again.';
+      } else if (e.code == 'invalid-email') {
+        message = 'Invalid email address.';
+      } else if (e.code == 'invalid-credential') {
+        message = 'Invalid email or password.';
+      }
+      _showSnackBar(message);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar('An error occurred. Please try again.');
+    }
+  }
+
+  void _showVerificationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Email Not Verified'),
+        content: const Text(
+          'Please verify your email before logging in. '
+          'Check your inbox and spam folder for the verification link.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await _authService.resendVerificationEmail();
+              if (!context.mounted) return;
+              Navigator.pop(context);
+              _showSnackBar(
+                'Verification email sent! Check your inbox and spam folder.',
+              );
+            },
+            child: const Text('Resend Email'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showForgotPasswordDialog() {
+    final resetEmailController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Forgot Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter your email to receive a password reset link.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: resetEmailController,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final email = resetEmailController.text.trim();
+              if (email.isEmpty || !email.contains('@')) {
+                _showSnackBar('Please enter a valid email.');
+                return;
+              }
+              try {
+                await _authService.sendPasswordResetEmail(email);
+                if (!context.mounted) return;
+                Navigator.pop(context);
+                _showSnackBar(
+                  'Password reset email sent! Check your inbox and spam folder.',
+                );
+              } catch (e) {
+                _showSnackBar('Failed to send reset email. Please try again.');
+              }
+            },
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +199,7 @@ class _LoginPageState extends State<LoginPage> {
                 // Email Field
                 TextFormField(
                   controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     labelText: "Email",
                     prefixIcon: const Icon(
@@ -114,27 +263,14 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
-                    }
-                    if (value.length < 8) {
-                      return 'Password must be at least 8 characters';
-                    }
-                    if (!value.contains(RegExp(r'[0-9]'))) {
-                      return 'Password must contain at least one number';
-                    }
-                    return null;
-                  },
+                  validator: AuthService.validatePassword,
                 ),
 
                 // Forgot Password
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {
-                      // Forgot password logic
-                    },
+                    onPressed: _showForgotPasswordDialog,
                     child: const Text(
                       "Forgot Password?",
                       style: TextStyle(
@@ -151,16 +287,7 @@ class _LoginPageState extends State<LoginPage> {
                   width: double.infinity,
                   height: 55,
                   child: ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const PatientDashboard(),
-                          ),
-                        );
-                      }
-                    },
+                    onPressed: _isLoading ? null : _login,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: tealPrimary,
                       foregroundColor: Colors.white,
@@ -169,13 +296,22 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       elevation: 2,
                     ),
-                    child: const Text(
-                      "Login",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            "Login",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 24),

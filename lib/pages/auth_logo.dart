@@ -20,7 +20,7 @@ class AuthLogo extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: tealPrimary.withOpacity(0.2),
+                color: tealPrimary.withValues(alpha: 0.2),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),

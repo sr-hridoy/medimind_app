@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/auth_service.dart';
+import '../services/database_service.dart';
 import 'login_page.dart';
 import 'patient_dashboard.dart';
-import 'admin_page.dart';
+import '../widgets/dose_list_view.dart';
 
 class MonitorDashboard extends StatefulWidget {
   const MonitorDashboard({super.key});
@@ -12,17 +15,14 @@ class MonitorDashboard extends StatefulWidget {
 
 class _MonitorDashboardState extends State<MonitorDashboard> {
   int currentIndex = 0;
+  final AuthService _authService = AuthService();
+  late DatabaseService _dbService;
 
-  List<Map<String, dynamic>> patients = [
-    {
-      "name": "Patient A",
-      "medicines": ["Napa 500mg - 08:00 AM", "Insulin - 09:00 PM"],
-    },
-    {
-      "name": "Patient B",
-      "medicines": ["Syrup X - 02:00 PM"],
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _dbService = DatabaseService(userId: _authService.currentUser?.uid);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +36,7 @@ class _MonitorDashboardState extends State<MonitorDashboard> {
         title: const Text("Monitor Dashboard"),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        automaticallyImplyLeading: false,
       ),
       body: pages[currentIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -63,52 +64,223 @@ class _MonitorDashboardState extends State<MonitorDashboard> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              "Linked Patients",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF37474F),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _showLinkPatientDialog,
+              icon: const Icon(Icons.person_add, size: 18),
+              label: const Text("Link Patient"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF26A69A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         const Text(
-          "Linked Patients",
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF37474F),
-          ),
+          "You can link up to 5 patients",
+          style: TextStyle(color: Colors.grey, fontSize: 12),
         ),
         const SizedBox(height: 16),
 
-        ...patients.map((patient) {
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ExpansionTile(
-              tilePadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 4,
-              ),
-              leading: const Icon(
-                Icons.person_outline,
-                color: Color(0xFF26A69A),
-              ),
-              title: Text(
-                patient["name"],
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              shape: const RoundedRectangleBorder(side: BorderSide.none),
-              children: (patient["medicines"] as List).map((med) {
-                return ListTile(
-                  leading: const Icon(
-                    Icons.medication_outlined,
-                    color: Color(0xFF26A69A),
-                    size: 20,
+        StreamBuilder<QuerySnapshot>(
+          stream: _dbService.getLinkedPatients(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Icon(Icons.people_outline, size: 48, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        "No linked patients yet",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        "Tap 'Link Patient' to send a request",
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
                   ),
-                  title: Text(med, style: const TextStyle(fontSize: 14)),
+                ),
+              );
+            }
+
+            return Column(
+              children: snapshot.data!.docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final patientEmail = data['patientEmail'] ?? 'Unknown';
+                final patientId = data['patientId'];
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    leading: const Icon(
+                      Icons.person_outline,
+                      color: Color(0xFF26A69A),
+                    ),
+                    title: Text(
+                      patientEmail,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    shape: const RoundedRectangleBorder(side: BorderSide.none),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: DoseListView(
+                          userId: patientId,
+                          isReadOnly: true,
+                        ),
+                      ),
+                    ],
+                  ),
                 );
               }).toList(),
-            ),
-          );
-        }),
+            );
+          },
+        ),
       ],
     );
+  }
+
+  void _showLinkPatientDialog() {
+    final emailController = TextEditingController();
+    bool isDialogLoading = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text("Link Patient"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Enter the email of the patient you want to monitor. "
+                  "They will receive a request to accept.",
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: emailController,
+                  enabled: !isDialogLoading,
+                  decoration: const InputDecoration(
+                    labelText: "Patient Email",
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                if (isDialogLoading)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 16),
+                    child: CircularProgressIndicator(),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: isDialogLoading
+                    ? null
+                    : () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: isDialogLoading
+                    ? null
+                    : () async {
+                        final email = emailController.text.trim();
+                        if (email.isEmpty || !email.contains('@')) {
+                          _showSnackBar('Please enter a valid email');
+                          return;
+                        }
+
+                        setDialogState(() => isDialogLoading = true);
+
+                        try {
+                          final userName = await _authService.getUserName();
+                          final userEmail =
+                              _authService.currentUser?.email ?? '';
+
+                          // Client-side validation: prevent self-request
+                          if (email.toLowerCase() == userEmail.toLowerCase()) {
+                            _showSnackBar(
+                              'You cannot send a request to yourself',
+                            );
+                            setDialogState(() => isDialogLoading = false);
+                            return;
+                          }
+
+                          await _dbService.sendLinkRequest(
+                            patientEmail: email,
+                            monitorName: userName ?? 'Unknown',
+                            monitorEmail: userEmail,
+                          );
+
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
+                          _showSnackBar('Link request sent successfully!');
+                        } catch (e) {
+                          if (mounted) {
+                            setDialogState(() => isDialogLoading = false);
+                            _showSnackBar(
+                              e.toString().replaceAll('Exception: ', ''),
+                            );
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF26A69A),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(isDialogLoading ? "Sending..." : "Send Request"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget settingsTab() {
@@ -144,26 +316,14 @@ class _MonitorDashboardState extends State<MonitorDashboard> {
               ),
               const Divider(height: 1),
               ListTile(
-                leading: const Icon(
-                  Icons.admin_panel_settings_outlined,
-                  color: Color(0xFF26A69A),
-                ),
-                title: const Text("Admin Panel"),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AdminPage()),
-                  );
-                },
-              ),
-              const Divider(height: 1),
-              ListTile(
                 leading: const Icon(Icons.logout, color: Colors.redAccent),
                 title: const Text(
                   "Logout",
                   style: TextStyle(color: Colors.redAccent),
                 ),
-                onTap: () {
+                onTap: () async {
+                  await _authService.signOut();
+                  if (!mounted) return;
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (_) => const LoginPage()),

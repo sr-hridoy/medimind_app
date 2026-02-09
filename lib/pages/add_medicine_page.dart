@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import '../services/database_service.dart';
+import '../services/notification_service.dart';
 
 class AddMedicinePage extends StatefulWidget {
   const AddMedicinePage({super.key});
@@ -11,7 +14,17 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
   final _name = TextEditingController(), _dose = TextEditingController();
   String _type = "tablet", _sched = "Daily", _freq = "Once";
   List<TimeOfDay> _times = [TimeOfDay.now()];
-  List<String> _days = [];
+  final List<String> _days = [];
+  bool _isLoading = false;
+
+  final AuthService _authService = AuthService();
+  late DatabaseService _dbService;
+
+  @override
+  void initState() {
+    super.initState();
+    _dbService = DatabaseService(userId: _authService.currentUser?.uid);
+  }
 
   void _updFreq(String f) {
     setState(() {
@@ -29,6 +42,79 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
                     const TimeOfDay(hour: 22, minute: 0),
                   ]);
     });
+  }
+
+  Future<void> _saveMedicine() async {
+    if (_name.text.isEmpty) {
+      _showSnackBar("Please enter medicine name");
+      return;
+    }
+    if (_sched == "Specific Days" && _days.isEmpty) {
+      _showSnackBar("Please select at least one day");
+      return;
+    }
+
+    // Prevent duplicate times
+    final timeStrings = _times.map((t) {
+      final hour = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+      final minute = t.minute.toString().padLeft(2, '0');
+      final period = t.period == DayPeriod.am ? 'AM' : 'PM';
+      return '$hour:$minute $period';
+    }).toList();
+
+    if (timeStrings.toSet().length < timeStrings.length) {
+      _showSnackBar("Please remove duplicate dose times");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final docRef = await _dbService.addMedicine({
+        'name': _name.text.trim(),
+        'dose': _dose.text.trim(),
+        'type': _type,
+        'schedule': _sched,
+        'selectedDays': _days,
+        'frequency': '$_freq Daily',
+        'times': timeStrings,
+      });
+      final docId = docRef.id;
+
+      // Schedule notifications for each dose time
+      try {
+        final notificationService = NotificationService();
+        for (final time in timeStrings) {
+          final notificationId = NotificationService.generateNotificationId(
+            docId,
+            time,
+          );
+          await notificationService.scheduleDoseNotification(
+            medicineId: docId,
+            medicineName: _name.text.trim(),
+            dose: _dose.text.trim(),
+            time: time,
+            notificationId: notificationId,
+          );
+        }
+      } catch (e) {
+        debugPrint("Error scheduling notifications: $e");
+        // Proceed even if notifications fail, but warn user via logs or subtle UI if needed
+      }
+
+      if (!mounted) return;
+      _showSnackBar("Medicine saved successfully!");
+      Navigator.pop(context);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar("Failed to save medicine to database. Please try again.");
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -68,7 +154,7 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField(
-            value: _type,
+            initialValue: _type,
             decoration: fieldDec.copyWith(labelText: "Type"),
             items: [
               "tablet",
@@ -80,7 +166,7 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField(
-            value: _sched,
+            initialValue: _sched,
             decoration: fieldDec.copyWith(labelText: "Schedule"),
             items: [
               "Daily",
@@ -100,7 +186,7 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
                         selected: _days.contains(d),
                         onSelected: (v) =>
                             setState(() => v ? _days.add(d) : _days.remove(d)),
-                        selectedColor: mint.withOpacity(0.3),
+                        selectedColor: mint.withValues(alpha: 0.3),
                       ),
                     )
                     .toList(),
@@ -108,7 +194,7 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
             ),
           const SizedBox(height: 12),
           DropdownButtonFormField(
-            value: _freq,
+            initialValue: _freq,
             decoration: fieldDec.copyWith(labelText: "Frequency"),
             items: ["Once", "Twice", "Thrice"]
                 .map((f) => DropdownMenuItem(value: f, child: Text("$f Daily")))
@@ -149,20 +235,20 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
               padding: const EdgeInsets.symmetric(vertical: 16),
               elevation: 0,
             ),
-            onPressed: () {
-              if (_name.text.isEmpty ||
-                  (_sched == "Specific Days" && _days.isEmpty)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Please fill all details")),
-                );
-              } else {
-                Navigator.pop(context);
-              }
-            },
-            child: const Text(
-              "Save Medicine",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+            onPressed: _isLoading ? null : _saveMedicine,
+            child: _isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text(
+                    "Save Medicine",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
           ),
         ],
       ),
