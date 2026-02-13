@@ -6,6 +6,7 @@ import 'add_medicine_page.dart';
 import 'login_page.dart';
 import 'monitor_dashboard.dart';
 import '../widgets/dose_list_view.dart';
+import '../utils/medicine_utils.dart';
 
 class PatientDashboard extends StatefulWidget {
   const PatientDashboard({super.key});
@@ -29,12 +30,6 @@ class _PatientDashboardState extends State<PatientDashboard> {
     _dbService = DatabaseService(userId: _authService.currentUser?.uid);
   }
 
-  IconData getMedicineIcon(String type) {
-    if (type == "tablet") return Icons.medication;
-    if (type == "syrup") return Icons.local_drink;
-    return Icons.vaccines;
-  }
-
   void _showMedManageDetail(Map<String, dynamic> med, String docId) {
     showModalBottomSheet(
       context: context,
@@ -46,10 +41,10 @@ class _PatientDashboardState extends State<PatientDashboard> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              getMedicineIcon(med["type"] ?? 'tablet'),
-              size: 48,
-              color: const Color(0xFF26A69A),
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: MedicineUtils.getMedicineIcon(med["type"], size: 48),
             ),
             const SizedBox(height: 16),
             Text(
@@ -72,10 +67,11 @@ class _PatientDashboardState extends State<PatientDashboard> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () async {
-                      await _dbService.deleteMedicine(docId);
-                      if (!mounted) return;
+                    onPressed: () {
                       Navigator.pop(context);
+                      _dbService.deleteMedicine(docId).catchError((e) {
+                        debugPrint('Delete failed: $e');
+                      });
                     },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red,
@@ -111,10 +107,81 @@ class _PatientDashboardState extends State<PatientDashboard> {
     return Scaffold(
       backgroundColor: mintBackground,
       appBar: AppBar(
-        title: const Text("MediMind"),
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF00897B),
         elevation: 0,
         automaticallyImplyLeading: false,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.medical_services_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "MediMind",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  _authService.currentUser?.displayName != null
+                      ? "Hello, ${_authService.currentUser!.displayName!.split(' ').first}!"
+                      : "Your health companion",
+                  style: const TextStyle(fontSize: 12, color: Colors.white70),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.swap_horiz, color: Colors.white),
+            tooltip: "Switch to Monitor",
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text("Switch Dashboard"),
+                  content: const Text(
+                    "Are you sure you want to switch to Monitor Dashboard?",
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text("No"),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text("Yes"),
+                    ),
+                  ],
+                ),
+              );
+              if (ok == true && context.mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MonitorDashboard()),
+                );
+              }
+            },
+          ),
+        ],
       ),
       body: pages[currentIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -225,9 +292,13 @@ class _PatientDashboardState extends State<PatientDashboard> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: ListTile(
-                        leading: Icon(
-                          getMedicineIcon(data["type"] ?? 'tablet'),
-                          color: const Color(0xFF26A69A),
+                        leading: SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: MedicineUtils.getMedicineIcon(
+                            data["type"],
+                            size: 40,
+                          ),
                         ),
                         title: Text(
                           data["name"] ?? 'Unknown',

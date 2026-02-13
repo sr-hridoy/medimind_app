@@ -37,6 +37,39 @@ class _MonitorDashboardState extends State<MonitorDashboard> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.swap_horiz),
+            tooltip: "Switch to Patient",
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text("Switch Dashboard"),
+                  content: const Text(
+                    "Are you sure you want to switch to Patient Dashboard?",
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text("No"),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text("Yes"),
+                    ),
+                  ],
+                ),
+              );
+              if (ok == true && context.mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PatientDashboard()),
+                );
+              }
+            },
+          ),
+        ],
       ),
       body: pages[currentIndex],
       bottomNavigationBar: BottomNavigationBar(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/database_service.dart';
+import '../utils/medicine_utils.dart';
 
 class DoseListView extends StatefulWidget {
   final String userId;
@@ -25,11 +26,7 @@ class _DoseListViewState extends State<DoseListView> {
     _dbService = DatabaseService(userId: widget.userId);
   }
 
-  IconData getMedicineIcon(String type) {
-    if (type == "tablet") return Icons.medication;
-    if (type == "syrup") return Icons.local_drink;
-    return Icons.vaccines;
-  }
+  // getMedicineIcon removed - using MedicineUtils.getMedicineIcon instead
 
   bool _shouldShowToday(Map<String, dynamic> med) {
     final schedule = med['schedule'] ?? 'Daily';
@@ -78,10 +75,10 @@ class _DoseListViewState extends State<DoseListView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              getMedicineIcon(med["type"] ?? 'tablet'),
-              size: 48,
-              color: const Color(0xFF26A69A),
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: MedicineUtils.getMedicineIcon(med["type"], size: 48),
             ),
             const SizedBox(height: 16),
             Text(
@@ -112,14 +109,13 @@ class _DoseListViewState extends State<DoseListView> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () async {
-                        await _dbService.trackDose(
-                          docId,
-                          'missed',
-                          doseTime ?? '',
-                        );
-                        if (!mounted) return;
+                      onPressed: () {
                         Navigator.pop(context);
+                        _dbService
+                            .trackDose(docId, 'missed', doseTime ?? '')
+                            .catchError((e) {
+                              debugPrint('Track missed failed: $e');
+                            });
                       },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.orange[800],
@@ -131,14 +127,13 @@ class _DoseListViewState extends State<DoseListView> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () async {
-                        await _dbService.trackDose(
-                          docId,
-                          'taken',
-                          doseTime ?? '',
-                        );
-                        if (!mounted) return;
+                      onPressed: () {
                         Navigator.pop(context);
+                        _dbService
+                            .trackDose(docId, 'taken', doseTime ?? '')
+                            .catchError((e) {
+                              debugPrint('Track taken failed: $e');
+                            });
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF26A69A),
@@ -350,9 +345,10 @@ class _DoseListViewState extends State<DoseListView> {
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
-        leading: Icon(
-          getMedicineIcon(med["type"] ?? 'tablet'),
-          color: status == "missed" ? Colors.grey : const Color(0xFF26A69A),
+        leading: SizedBox(
+          width: 40,
+          height: 40,
+          child: MedicineUtils.getMedicineIcon(med["type"], size: 40),
         ),
         title: Text(
           med["name"] ?? 'Unknown',

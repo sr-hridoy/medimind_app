@@ -21,13 +21,6 @@ void main() async {
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // Initialize notifications
-  try {
-    await NotificationService().initialize();
-  } catch (e) {
-    debugPrint('Failed to initialize notifications: $e');
-  }
-
   // Set up notification action callback
   NotificationService.onActionCallback = (medicineId, time, action) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -37,6 +30,11 @@ void main() async {
     final status = action == 'taken' ? 'taken' : 'missed';
     await dbService.trackDose(medicineId, status, time);
   };
+
+  // Initialize notifications in background (don't block app start)
+  NotificationService().initialize().catchError((e) {
+    debugPrint('Failed to initialize notifications: $e');
+  });
 
   runApp(const MyApp());
 }

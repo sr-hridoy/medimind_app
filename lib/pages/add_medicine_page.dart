@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
+import '../utils/medicine_utils.dart';
 
 class AddMedicinePage extends StatefulWidget {
   const AddMedicinePage({super.key});
@@ -24,6 +25,13 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
   void initState() {
     super.initState();
     _dbService = DatabaseService(userId: _authService.currentUser?.uid);
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _dose.dispose();
+    super.dispose();
   }
 
   void _updFreq(String f) {
@@ -106,8 +114,10 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
       _showSnackBar("Medicine saved successfully!");
       Navigator.pop(context);
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
-      _showSnackBar("Failed to save medicine to database. Please try again.");
+      final msg = e.toString().replaceAll('Exception: ', '');
+      _showSnackBar(msg);
     }
   }
 
@@ -156,12 +166,25 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
           DropdownButtonFormField(
             initialValue: _type,
             decoration: fieldDec.copyWith(labelText: "Type"),
-            items: [
-              "tablet",
-              "syrup",
-              "injection",
-              "others",
-            ].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+            items: ["tablet", "syrup", "injection", "others"].map((t) {
+              return DropdownMenuItem(
+                value: t,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: MedicineUtils.getMedicineIcon(t, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      t[0].toUpperCase() + t.substring(1),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
             onChanged: (v) => setState(() => _type = v!),
           ),
           const SizedBox(height: 12),
