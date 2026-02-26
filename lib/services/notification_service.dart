@@ -102,7 +102,7 @@ class NotificationService {
     required String body,
     String? payload,
   }) async {
-    if (!kIsWeb)
+    if (!kIsWeb) {
       await _notifications.show(
         id,
         title,
@@ -110,6 +110,7 @@ class NotificationService {
         _getDetails(),
         payload: payload,
       );
+    }
   }
 
   DateTime? _parseTimeToday(String timeStr) {
@@ -123,10 +124,11 @@ class NotificationService {
     final minute = int.parse(match.group(2)!);
     final isPM = match.group(3)!.toUpperCase() == 'PM';
 
-    if (isPM && hour != 12)
+    if (isPM && hour != 12) {
       hour += 12;
-    else if (!isPM && hour == 12)
+    } else if (!isPM && hour == 12) {
       hour = 0;
+    }
 
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day, hour, minute);
