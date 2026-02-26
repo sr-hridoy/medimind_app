@@ -32,10 +32,8 @@ class _LoginPageState extends State<LoginPage> {
         password: passController.text,
       );
 
-      // Reload user to get latest verification status
       await _authService.reloadUser();
 
-      // Check if email is verified
       if (!_authService.isEmailVerified()) {
         if (!mounted) return;
         setState(() => _isLoading = false);
@@ -45,7 +43,6 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      // Check if user is admin
       final email = emailController.text.trim();
       if (_authService.isAdmin(email)) {
         Navigator.pushReplacement(

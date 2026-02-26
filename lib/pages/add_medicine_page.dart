@@ -61,8 +61,6 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
       _showSnackBar("Please select at least one day");
       return;
     }
-
-    // Prevent duplicate times
     final timeStrings = _times.map((t) {
       final hour = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
       final minute = t.minute.toString().padLeft(2, '0');
@@ -89,7 +87,6 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
       });
       final docId = docRef.id;
 
-      // Schedule notifications for each dose time
       try {
         final notificationService = NotificationService();
         for (final time in timeStrings) {
@@ -107,7 +104,6 @@ class _AddMedicinePageState extends State<AddMedicinePage> {
         }
       } catch (e) {
         debugPrint("Error scheduling notifications: $e");
-        // Proceed even if notifications fail, but warn user via logs or subtle UI if needed
       }
 
       if (!mounted) return;

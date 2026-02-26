@@ -22,8 +22,6 @@ class _PatientDashboardState extends State<PatientDashboard> {
   final AuthService _authService = AuthService();
   late DatabaseService _dbService;
 
-  // Track taken/missed medicines persistence handled by DatabaseService
-
   @override
   void initState() {
     super.initState();
@@ -221,12 +219,10 @@ class _PatientDashboardState extends State<PatientDashboard> {
     );
   }
 
-  // ---------------- HOME TAB ----------------
   Widget homeTab() {
     return DoseListView(userId: _authService.currentUser?.uid ?? '');
   }
 
-  // ---------------- MEDICINES TAB ----------------
   Widget medicinesTab() {
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -352,7 +348,6 @@ class _PatientDashboardState extends State<PatientDashboard> {
     );
   }
 
-  // ---------------- SETTINGS TAB ----------------
   Widget settingsTab() {
     return ListView(
       padding: const EdgeInsets.all(20),

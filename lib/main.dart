@@ -15,13 +15,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Enable Firestore offline persistence
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // Set up notification action callback
   NotificationService.onActionCallback = (medicineId, time, action) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -31,7 +29,6 @@ void main() async {
     await dbService.trackDose(medicineId, status, time);
   };
 
-  // Initialize notifications in background (don't block app start)
   NotificationService().initialize().catchError((e) {
     debugPrint('Failed to initialize notifications: $e');
   });
@@ -62,7 +59,6 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: authService.authStateChanges,
       builder: (context, snapshot) {
-        // If snapshot has data, user is logged in
         if (snapshot.hasData && snapshot.data != null) {
           final user = snapshot.data!;
           if (authService.isAdmin(user.email ?? '')) {
@@ -71,7 +67,6 @@ class AuthWrapper extends StatelessWidget {
           return const PatientDashboard();
         }
 
-        // Otherwise, show welcome page
         return const WelcomePage();
       },
     );

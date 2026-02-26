@@ -26,8 +26,6 @@ class _DoseListViewState extends State<DoseListView> {
     _dbService = DatabaseService(userId: widget.userId);
   }
 
-  // getMedicineIcon removed - using MedicineUtils.getMedicineIcon instead
-
   bool _shouldShowToday(Map<String, dynamic> med) {
     final schedule = med['schedule'] ?? 'Daily';
     if (schedule == 'Daily') return true;

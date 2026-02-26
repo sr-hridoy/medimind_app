@@ -8,30 +8,27 @@ class WelcomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Custom Colors matching the design (Mint/Teal)
     const Color mintBackground = Color(0xFFE0F7FA);
     const Color tealPrimary = Color(0xFF26A69A);
     const Color textDark = Color(0xFF37474F);
 
     return Scaffold(
       backgroundColor: mintBackground,
-      // No AppBar to enforce "No Theme Toggle" and cleaner look
+
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const SizedBox(height: 20), // Top spacer
-              // --- CENTER CONTENT ---
+              const SizedBox(height: 20),
+
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Logo
                   const AuthLogo(),
                   const SizedBox(height: 48),
 
-                  // "Welcome To"
                   Text(
                     "Welcome To",
                     style: TextStyle(
@@ -42,7 +39,6 @@ class WelcomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
 
-                  // "MediMind"
                   const Text(
                     "MediMind",
                     style: TextStyle(
@@ -53,7 +49,6 @@ class WelcomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  // Subtitle
                   const Text(
                     "Your personal assistant for managing\nyour medication schedule.",
                     textAlign: TextAlign.center,
@@ -66,10 +61,8 @@ class WelcomePage extends StatelessWidget {
                 ],
               ),
 
-              // --- BOTTOM BUTTONS ---
               Column(
                 children: [
-                  // Login Button (Filled)
                   SizedBox(
                     width: double.infinity,
                     height: 55,
@@ -101,7 +94,6 @@ class WelcomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  // Register Button (Outlined)
                   SizedBox(
                     width: double.infinity,
                     height: 55,

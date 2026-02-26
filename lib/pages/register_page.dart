@@ -34,13 +34,11 @@ class _RegisterPageState extends State<RegisterPage> {
         name: nameController.text.trim(),
       );
 
-      // Sign out so user has to verify email first
       await _authService.signOut();
 
       if (!mounted) return;
       setState(() => _isLoading = false);
 
-      // Show success dialog
       _showSuccessDialog();
     } on FirebaseAuthException catch (e) {
       setState(() => _isLoading = false);
